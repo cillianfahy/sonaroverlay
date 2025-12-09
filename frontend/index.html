@@ -9,14 +9,112 @@
       .card { border: 1px solid #ddd; border-radius: 8px; padding: 16px; max-width: 720px; }
       h1 { margin-top: 0; }
       code { background: #f6f8fa; padding: 2px 6px; border-radius: 4px; }
+      .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+      label { font-weight: 600; }
+      select, input, button { padding: 6px 8px; }
+      img { max-width: 100%; border: 1px solid #eee; border-radius: 4px; }
     </style>
   </head>
   <body>
     <div class="card">
       <h1>Sonar Overlay</h1>
-      <p>Backend is running. Health check: <code>/health</code></p>
-      <p>Next steps: camera stream, calibration, and sonar overlay.</p>
+      <div class="row">
+        <label for="cameraSel">Camera:</label>
+        <select id="cameraSel"></select>
+        <button id="btnSelect">Select</button>
+        <button id="btnRefresh">Refresh</button>
+      </div>
+      <div class="row" style="margin-top: 8px;">
+        <label>Calibration:</label>
+        <input id="rows" type="number" placeholder="rows" value="7" min="3" style="width:80px;" />
+        <input id="cols" type="number" placeholder="cols" value="9" min="3" style="width:80px;" />
+        <input id="square" type="number" placeholder="square m" value="0.025" step="0.001" style="width:120px;" />
+        <button id="btnStart">Start</button>
+        <button id="btnCapture">Capture</button>
+        <button id="btnSolve">Solve</button>
+        <span id="calibStatus"></span>
+      </div>
+      <div class="row" style="margin-top: 8px;">
+        <label>Extrinsics (rvec,tvec):</label>
+        <input id="rvec" type="text" value="0,0,0" style="width:160px;" />
+        <input id="tvec" type="text" value="0,0,0" style="width:160px;" />
+        <button id="btnExtr">Save</button>
+      </div>
+      <div class="row" style="margin-top: 8px;">
+        <label>Overlay:</label>
+        <input id="overlayEnabled" type="checkbox" checked />
+        <label for="overlayEnabled">Enabled</label>
+        <label>Point size</label>
+        <input id="pointSize" type="number" value="2" min="1" max="10" style="width:80px;" />
+        <label>Decimate</label>
+        <input id="decimate" type="number" value="4" min="1" max="32" style="width:80px;" />
+        <button id="btnOverlay">Apply</button>
+      </div>
+      <div style="margin-top: 12px;">
+        <img id="stream" alt="stream" />
+      </div>
     </div>
+    <script>
+      async function fetchJSON(url, opts) {
+        const res = await fetch(url, opts);
+        if (!res.ok) throw new Error(await res.text());
+        return res.json();
+      }
+      async function refreshCameras() {
+        const data = await fetchJSON('/api/cameras');
+        const sel = document.getElementById('cameraSel');
+        sel.innerHTML = '';
+        data.devices.forEach(d => {
+          const opt = document.createElement('option');
+          opt.value = d.index;
+          opt.textContent = d.name + ' (' + d.index + ')';
+          sel.appendChild(opt);
+        });
+      }
+      async function selectCamera() {
+        const idx = parseInt(document.getElementById('cameraSel').value);
+        await fetchJSON('/api/camera/select', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({device_index: idx})});
+        document.getElementById('stream').src = '/stream.mjpg?ts=' + Date.now();
+      }
+      async function startCalib() {
+        const rows = parseInt(document.getElementById('rows').value);
+        const cols = parseInt(document.getElementById('cols').value);
+        const square = parseFloat(document.getElementById('square').value);
+        const st = await fetchJSON('/api/calib/start', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({rows, cols, square_size_m: square})});
+        updateStatus(st);
+      }
+      function updateStatus(st) {
+        document.getElementById('calibStatus').textContent = `samples: ${st.num_samples} (${st.target_rows}x${st.target_cols})`;
+      }
+      async function captureCalib() {
+        const st = await fetchJSON('/api/calib/capture', {method:'POST'});
+        updateStatus(st);
+      }
+      async function solveCalib() {
+        const st = await fetchJSON('/api/calib/solve', {method:'POST'});
+        alert('Calibrated. RMS error: ' + st.rms_error.toFixed(4));
+      }
+      async function saveExtrinsics() {
+        const rvec = document.getElementById('rvec').value.split(',').map(parseFloat);
+        const tvec = document.getElementById('tvec').value.split(',').map(parseFloat);
+        await fetchJSON('/api/extrinsics', {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({rvec, tvec})});
+        alert('Extrinsics saved.');
+      }
+      async function applyOverlay() {
+        const enabled = document.getElementById('overlayEnabled').checked;
+        const point_size = parseInt(document.getElementById('pointSize').value);
+        const decimate = parseInt(document.getElementById('decimate').value);
+        await fetchJSON('/api/overlay', {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({enabled, point_size, decimate, color_mode:'range', z_min_m:-100, z_max_m:100})});
+      }
+      document.getElementById('btnRefresh').onclick = refreshCameras;
+      document.getElementById('btnSelect').onclick = selectCamera;
+      document.getElementById('btnStart').onclick = startCalib;
+      document.getElementById('btnCapture').onclick = captureCalib;
+      document.getElementById('btnSolve').onclick = solveCalib;
+      document.getElementById('btnExtr').onclick = saveExtrinsics;
+      document.getElementById('btnOverlay').onclick = applyOverlay;
+      refreshCameras();
+    </script>
   </body>
   </html>
 *** End Patch  """
