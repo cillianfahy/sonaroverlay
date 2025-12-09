@@ -1,0 +1,10 @@
+// Placeholder for Water Linked Sonar 3D-15 protocol messages.
+// Refer to vendor documentation for the full .proto definition.
+syntax = "proto3";
+
+package waterlinked.sonar.protocol;
+
+// message Packet { google.protobuf.Any msg = 1; }
+// message RangeImage { /* full definition to be added */ }
+
+
