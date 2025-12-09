@@ -1,8 +1,6 @@
 fastapi
 uvicorn
 pydantic>=2
-protobuf
 grpcio-tools
-python-snappy
 starlette
 

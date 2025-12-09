@@ -6,6 +6,8 @@ dependencies:
   - numpy
   - opencv
   - snappy
+  - python-snappy
+  - protobuf
   - pip
 
 
